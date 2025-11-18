@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prédiction de Chiffres</title>
+    <link rel='stylesheet' href="{{ url_for('static', filename='styles.css') }}"> 
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico')}}">
+    
+</head>
+<body>
+    <video id="bg-video" autoplay muted loop playsinline>
+    <source src="{{ url_for('static', filename='vid.mp4') }}" type="video/mp4">
+    Votre navigateur ne supporte pas la vidéo HTML5.
+    </video>
+    <div class="video-overlay"></div>
+    <div class="container">
+        <h1>Prédiction de Chiffres</h1>
+        <p class="subtitle">Téléchargez une image d'un chiffre manuscrit (0-9)</p>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📤</div>
+            <p style="margin: 10px 0; color: #667eea; font-size: 1.2em;">
+                Cliquez ou glissez une image ici
+            </p>
+            <p style="color: #999; font-size: 0.9em;">PNG, JPG ou JPEG</p>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <div class="preview-area">
+            <img id="preview" alt="Preview">
+        </div>
+
+        <div style="text-align: center;">
+            <button class="btn" id="predictBtn" disabled>Prédire le Chiffre</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 10px; color: #666;">Analyse en cours...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="result-area" id="resultArea">
+            <h2 style="text-align: center; color: #fbfbfb; margin-bottom: 20px;">Résultat</h2>
+            <div class="prediction" id="prediction">-</div>
+            <div class="confidence">
+                Confiance: <strong id="confidence">0%</strong>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const predictBtn = document.getElementById('predictBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const resultArea = document.getElementById('resultArea');
+        const prediction = document.getElementById('prediction');
+        const confidence = document.getElementById('confidence');
+
+        let selectedFile = null;
+
+        // Click sur la zone de téléchargement
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Sélection de fichier
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Veuillez sélectionner une image valide');
+                return;
+            }
+
+            selectedFile = file;
+            
+            // Afficher la prévisualisation
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                predictBtn.disabled = false;
+                resultArea.classList.remove('show');
+                error.classList.remove('show');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        predictBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            loading.classList.add('show');
+            predictBtn.disabled = true;
+            resultArea.classList.remove('show');
+            error.classList.remove('show');
+
+            const formData = new FormData();
+            formData.append('image', selectedFile);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    prediction.textContent = data.prediction;
+                    confidence.textContent = data.confidence.toFixed(2) + '%';
+                    resultArea.classList.add('show');
+                } else {
+                    showError(data.error || 'Erreur lors de la prédiction');
+                }
+            } catch (err) {
+                showError('Erreur de connexion au serveur');
+            } finally {
+                loading.classList.remove('show');
+                predictBtn.disabled = false;
+            }
+        });
+
+        function showError(message) {
+            error.textContent = message;
+            error.classList.add('show');
+        }
+    </script>
+</body>
+</html>
